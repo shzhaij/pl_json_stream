@@ -1,0 +1,94 @@
+create or replace package PL_JSON_STREAM as
+   
+  /*
+   SET SERVEROUTPUT ON;
+   DECLARE
+     CTX PL_JSON_STREAM.T_PARSE_CONTEXT;
+     STR VARCHAR2(200);
+     E PL_JSON_STREAM.T_JSON_EVENT;
+   BEGIN
+     STR := '{"ABC":123.45,"KEY2":TRUE,"key4":NULL, "k5":["a",  "B", 123.34E12, false], "K4":{"P":12}, "K2":[]}';
+     PL_JSON_STREAM.BEGIN_PARSE(STR, CTX);
+     WHILE TRUE LOOP
+       PL_JSON_STREAM.NEXT_JSON_EVENT(CTX, E);
+       EXIT WHEN E.EVENT = PL_JSON_STREAM.EVT_JSON_EOF;
+       DBMS_OUTPUT.PUT_LINE(E.TOKEN);
+     END LOOP;
+   END;
+  */
+   
+  /**constant value of object start event*/
+   EVT_JSON_OS constant number := 1;
+   
+  /**constant value of object end event*/
+   EVT_JSON_OE constant number := 2;
+   
+  /**constant value of array start event*/
+   EVT_JSON_AS constant number := 3;
+   
+  /**constant value of array end event */
+   EVT_JSON_AE constant number := 4;
+   
+  /**constant value of object attribute key event */
+   EVT_JSON_ATTR_KEY constant number := 5;
+   
+  /**constant value of string value event */
+   EVT_JSON_V_STR constant number := 6;
+   
+  /**constant value of number value event */
+   EVT_JSON_V_NUM constant number := 7;
+   
+  /**constant value of boolean false value event */
+   EVT_JSON_V_F constant number := 8;
+   
+  /**constant value of boolean true value event */
+   EVT_JSON_V_T constant number := 9;
+   
+  /**constant value of null value event */
+   EVT_JSON_V_NIL constant number := 10;
+   
+  /**constant value of value separator event */
+   EVT_JSON_COMMA constant number := 11;
+   
+  /**constant value of attribute separator event */
+   EVT_JSON_COLON constant number := 12;
+   
+  /**constant value of eof event */
+   EVT_JSON_EOF constant number := -1;
+   
+  /**
+    type definition of event record
+  */
+   type T_JSON_EVENT is record (TOKEN varchar2(32767), EVENT number(2));
+   
+  /**
+    type definition of event stack
+  */
+   type T_EVENT_STACK is table of number(2);
+   
+   type T_PARSE_CONTEXT is record (
+                                   DATA_TYPE number(1),
+                                   STR_DATA varchar(32767),
+                                   LOB_DATA clob,
+                                   IDX number := 1,
+                                   TOTAL_LEN number := 0,
+                                   
+                                   BUF varchar(32767),
+                                   BUF_IDX number := 1,
+                                   BUF_LMT number := 0,
+                                   
+                                   PB varchar(1024),
+                                   PB_IDX number := 1,
+                                   PB_LMT number := 0,
+                                   E_STACK T_EVENT_STACK
+                                   );
+   
+   MALFORMED_JSON_STRING exception;
+   pragma EXCEPTION_INIT(MALFORMED_JSON_STRING, -20601);
+   
+   procedure BEGIN_PARSE(STR in varchar, CTX out T_PARSE_CONTEXT);
+   
+   procedure NEXT_JSON_EVENT(CTX in out T_PARSE_CONTEXT, E out nocopy T_JSON_EVENT);
+   
+end PL_JSON_STREAM;
+/
