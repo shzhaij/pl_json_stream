@@ -1,5 +1,35 @@
-create or replace package body PL_JSON_STREAM as 
+create or replace package body PL_JSON_STREAM as
    
+   /*
+   Copyright (c) 2014, Jia Zhai
+   All rights reserved.
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are met:
+
+   * Redistributions of source code must retain the above copyright notice, this
+     list of conditions and the following disclaimer.
+
+   * Redistributions in binary form must reproduce the above copyright notice,
+     this list of conditions and the following disclaimer in the documentation
+     and/or other materials provided with the distribution.
+
+   * Neither the name of pl_json_stream nor the names of its
+     contributors may be used to endorse or promote products derived from
+     this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+   AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+   IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+   DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+   FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+   DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+   SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+   CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+   OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+   */
+
    MAX_BUF_LMT constant number := 4096;
    MAX_PK_LMT constant number := 1024;
    ESCAPE_CHARS constant varchar2(8) := '"' || '\' || '/' || 'b' || 'f' || 'n' || 'r' || 't';
@@ -300,13 +330,13 @@ create or replace package body PL_JSON_STREAM as
    begin
       E.TOKEN := CH;
       if (CH = '[') then
-         E.EVENT := EVT_JSON_AS;
+         E.EVENT := EVT_JSON_ARRAY_START;
       elsif (CH = ']') then
-         E.EVENT := EVT_JSON_AE;
+         E.EVENT := EVT_JSON_ARRAY_END;
       elsif (CH = '{') then
-         E.EVENT := EVT_JSON_OS;
+         E.EVENT := EVT_JSON_OBJ_START;
       elsif (CH = '}') then
-         E.EVENT := EVT_JSON_OE;
+         E.EVENT := EVT_JSON_OBJ_END;
       elsif (CH = ':') then
          E.EVENT := EVT_JSON_COLON;
       elsif (CH = ',') then
@@ -347,66 +377,6 @@ create or replace package body PL_JSON_STREAM as
       end loop;
    end;
    
-   procedure NEXT_RAW_E(CTX in out T_PARSE_CONTEXT, E in out T_JSON_EVENT) is
-   CNT number := 0;
-   STR varchar(32767);
-   begin
-      NEXT_TK(CTX, E);
-      CNT := CTX.E_STACK.COUNT;
-      if (E.EVENT in (EVT_JSON_OS, EVT_JSON_AS)) then
-         CTX.E_STACK.EXTEND(1);
-         CTX.E_STACK(CNT + 1) := E.EVENT;
-      elsif (E.EVENT = EVT_JSON_OE) then
-         if (CTX.E_STACK(CNT) = EVT_JSON_OS) then
-            CTX.E_STACK.TRIM(1);
-            if (CNT > 1 and CTX.E_STACK(CNT - 1) = EVT_JSON_ATTR_KEY) then
-               CTX.E_STACK.TRIM(1);
-            end if;
-         elsif (CTX.E_STACK(CNT) in (EVT_JSON_V_STR, EVT_JSON_V_NUM, EVT_JSON_V_F, EVT_JSON_V_T, EVT_JSON_V_NIL) 
-                and CTX.E_STACK(CNT - 1) = EVT_JSON_OS) then
-            CTX.E_STACK.TRIM(2);
-         else
-            RAISE_APPLICATION_ERROR(- 20601, 'No object start match found for the object end at position ' || CTX.IDX);
-         end if;
-      elsif (E.EVENT = EVT_JSON_AE) then
-         if (CTX.E_STACK(CNT) = EVT_JSON_AS) then
-            CTX.E_STACK.TRIM(1);
-            if (CNT > 1 and CTX.E_STACK(CNT - 1) = EVT_JSON_ATTR_KEY) then
-               CTX.E_STACK.TRIM(1);
-            end if;
-         elsif (CTX.E_STACK(CNT) in (EVT_JSON_V_STR, EVT_JSON_V_NUM, EVT_JSON_V_F, EVT_JSON_V_T, EVT_JSON_V_NIL) 
-                and CTX.E_STACK(CNT - 1) = EVT_JSON_AS) then
-            CTX.E_STACK.TRIM(2);
-         else
-            RAISE_APPLICATION_ERROR(- 20601, 'No array start match found for the array end at position ' || CTX.IDX);
-         end if;
-      elsif (E.EVENT in (EVT_JSON_V_STR, EVT_JSON_V_NUM, EVT_JSON_V_F, EVT_JSON_V_T, EVT_JSON_V_NIL)) then
-         if (E.EVENT = EVT_JSON_V_STR and CTX.E_STACK(CNT) = EVT_JSON_OS) then
-            STR := E.TOKEN;
-            NEXT_TK(CTX, E);
-            if (E.EVENT <> EVT_JSON_COLON) then
-               RAISE_APPLICATION_ERROR(- 20601, 'Invalid object attribute found at position ' || CTX.IDX);
-            end if;
-            E.TOKEN := STR;
-            E.EVENT := EVT_JSON_ATTR_KEY;
-            CTX.E_STACK.EXTEND(1);
-            CTX.E_STACK(CNT + 1) := E.EVENT;
-         elsif (CTX.E_STACK(CNT) = EVT_JSON_ATTR_KEY) then
-            CTX.E_STACK.TRIM(1);
-         elsif (CTX.E_STACK(CNT) <> EVT_JSON_AS) then
-            RAISE_APPLICATION_ERROR(- 20601, 'Invalid json value position found at position ' || CTX.IDX);
-         end if;
-      elsif (E.EVENT = EVT_JSON_COLON) then
-         RAISE_APPLICATION_ERROR(- 20601, 'Invalid colon found at position ' || CTX.IDX);
-      elsif (E.EVENT = EVT_JSON_COMMA) then
-         if (CTX.E_STACK(CNT) not in (EVT_JSON_OS, EVT_JSON_AS)) then
-            RAISE_APPLICATION_ERROR(- 20601, 'Invalid comma found at position ' || CTX.IDX);
-         end if;
-      else
-         RAISE_APPLICATION_ERROR(- 20601, 'Unknown error found at position ' || CTX.IDX);
-      end if;
-   end;
-   
    procedure BEGIN_PARSE(STR in varchar, CTX out T_PARSE_CONTEXT) is
    begin
       CTX.BUF_LMT := MAX_BUF_LMT;
@@ -417,19 +387,91 @@ create or replace package body PL_JSON_STREAM as
       CTX.E_STACK := T_EVENT_STACK();
    end;
    
+   function IS_SIMPLE_VALUE_EVENT(EVENT in number) return boolean is
+   begin
+      return EVENT in (EVT_JSON_V_STR, EVT_JSON_V_NUM, EVT_JSON_V_F, EVT_JSON_V_T, EVT_JSON_V_NIL);
+   end;
+   
+   function IS_VALUE_EVENT(EVENT in number) return boolean is
+   begin
+      return IS_SIMPLE_VALUE_EVENT(EVENT) or EVENT in (EVT_JSON_V_OBJ, EVT_JSON_V_ARRAY);
+   end;
+   
+   procedure CHECK_VALUE_POSITION(CTX in out T_PARSE_CONTEXT) is
+   CNT number := CTX.E_STACK.COUNT;
+   begin
+      if (CTX.E_STACK(CNT - 1) = EVT_JSON_ATTR_KEY and CTX.E_STACK(CNT - 2) = EVT_JSON_OBJ_START) then
+         CTX.E_STACK.TRIM(2);
+      elsif (CTX.E_STACK(CNT - 1) = EVT_JSON_ARRAY_START) then
+         CTX.E_STACK.TRIM(1);
+      else
+         RAISE_APPLICATION_ERROR(- 20601, 'Invalid value found at position ' || CTX.IDX);
+      end if;
+   end;
+   
    procedure NEXT_JSON_EVENT(CTX in out T_PARSE_CONTEXT, E out nocopy T_JSON_EVENT) is
+   CNT number := 0;
+   STR varchar(32767);
+   LE T_JSON_EVENT;
    begin
       while true loop
          if (CTX.IDX > CTX.TOTAL_LEN) then
             E.EVENT := EVT_JSON_EOF;
             exit;
          end if;
-         NEXT_RAW_E(CTX, E);
-         if (E.EVENT not in (EVT_JSON_COMMA, EVT_JSON_COLON)) then
-            return;
+         NEXT_TK(CTX, E);
+         CNT := CTX.E_STACK.COUNT;
+         
+         if (E.EVENT in (EVT_JSON_OBJ_START, EVT_JSON_ARRAY_START)) then
+            CTX.E_STACK.EXTEND(1);
+            CTX.E_STACK(CNT + 1) := E.EVENT;
+            exit;
+         elsif (IS_SIMPLE_VALUE_EVENT(E.EVENT)) then
+            CTX.E_STACK.EXTEND(1);
+            CTX.E_STACK(CNT + 1) := E.EVENT;
+            LE := E;
+         elsif (E.EVENT = EVT_JSON_COLON) then
+            if (CTX.E_STACK(CNT) = EVT_JSON_V_STR and CTX.E_STACK(CNT - 1) = EVT_JSON_OBJ_START) then
+               E := LE;
+               E.EVENT := EVT_JSON_ATTR_KEY;
+               CTX.E_STACK(CNT) := E.EVENT;
+            else
+               RAISE_APPLICATION_ERROR(- 20601, 'Invalid colon found at position ' || CTX.IDX);
+            end if;
+            exit;
+         elsif (E.EVENT = EVT_JSON_COMMA) then
+            if (IS_VALUE_EVENT(CTX.E_STACK(CNT))) then
+               CHECK_VALUE_POSITION(CTX);
+               E := LE;
+               exit when E.TOKEN is not null;
+            else
+               RAISE_APPLICATION_ERROR(- 20601, 'Invalid comma found at position ' || CTX.IDX);
+            end if;
+         elsif (E.EVENT = EVT_JSON_OBJ_END) then
+            if (CTX.E_STACK(CNT) = EVT_JSON_OBJ_START) then
+               CTX.E_STACK(CNT) := EVT_JSON_V_OBJ;
+               exit;
+            elsif (IS_VALUE_EVENT(CTX.E_STACK(CNT))) then
+               PUSH_BACK(CTX, E.TOKEN);
+               CHECK_VALUE_POSITION(CTX);
+               E := LE;
+               exit when E.TOKEN is not null;
+            else
+               RAISE_APPLICATION_ERROR(- 20601, 'Invalid object end found at position ' || CTX.IDX);
+            end if;
+         elsif (E.EVENT = EVT_JSON_ARRAY_END) then
+            if (CTX.E_STACK(CNT) = EVT_JSON_ARRAY_START) then
+               CTX.E_STACK(CNT) := EVT_JSON_V_ARRAY;
+               exit;
+            elsif (IS_VALUE_EVENT(CTX.E_STACK(CNT))) then
+               PUSH_BACK(CTX, E.TOKEN);
+               CHECK_VALUE_POSITION(CTX);
+               E := LE;
+               exit when E.TOKEN is not null;
+            else
+               RAISE_APPLICATION_ERROR(- 20601, 'Invalid array end found at position ' || CTX.IDX);
+            end if;
          end if;
-         E.TOKEN := '';
       end loop;
    end;
 end PL_JSON_STREAM;
-/

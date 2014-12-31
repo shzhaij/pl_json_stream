@@ -1,6 +1,36 @@
 create or replace package PL_JSON_STREAM as
    
-  /*
+   /*
+   Copyright (c) 2014, Jia Zhai
+   All rights reserved.
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are met:
+
+   * Redistributions of source code must retain the above copyright notice, this
+     list of conditions and the following disclaimer.
+
+   * Redistributions in binary form must reproduce the above copyright notice,
+     this list of conditions and the following disclaimer in the documentation
+     and/or other materials provided with the distribution.
+
+   * Neither the name of pl_json_stream nor the names of its
+     contributors may be used to endorse or promote products derived from
+     this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+   AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+   IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+   DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+   FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+   DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+   SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+   CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+   OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+   */
+
+   /*
    SET SERVEROUTPUT ON;
    DECLARE
      CTX PL_JSON_STREAM.T_PARSE_CONTEXT;
@@ -15,55 +45,61 @@ create or replace package PL_JSON_STREAM as
        DBMS_OUTPUT.PUT_LINE(E.TOKEN);
      END LOOP;
    END;
-  */
+   */
    
-  /**constant value of object start event*/
-   EVT_JSON_OS constant number := 1;
+   /**constant value of object start event*/
+   EVT_JSON_OBJ_START constant number := 1;
    
-  /**constant value of object end event*/
-   EVT_JSON_OE constant number := 2;
+   /**constant value of object end event*/
+   EVT_JSON_OBJ_END constant number := 2;
    
-  /**constant value of array start event*/
-   EVT_JSON_AS constant number := 3;
+   /**constant value of array start event*/
+   EVT_JSON_ARRAY_START constant number := 3;
    
-  /**constant value of array end event */
-   EVT_JSON_AE constant number := 4;
+   /**constant value of array end event */
+   EVT_JSON_ARRAY_END constant number := 4;
    
-  /**constant value of object attribute key event */
+   /**constant value of object attribute key event */
    EVT_JSON_ATTR_KEY constant number := 5;
    
-  /**constant value of string value event */
+   /**constant value of string value event */
    EVT_JSON_V_STR constant number := 6;
    
-  /**constant value of number value event */
+   /**constant value of number value event */
    EVT_JSON_V_NUM constant number := 7;
    
-  /**constant value of boolean false value event */
+   /**constant value of boolean false value event */
    EVT_JSON_V_F constant number := 8;
    
-  /**constant value of boolean true value event */
+   /**constant value of boolean true value event */
    EVT_JSON_V_T constant number := 9;
    
-  /**constant value of null value event */
+   /**constant value of null value event */
    EVT_JSON_V_NIL constant number := 10;
    
-  /**constant value of value separator event */
-   EVT_JSON_COMMA constant number := 11;
+   /**constant value of object value event */
+   EVT_JSON_V_OBJ constant number := 11;
    
-  /**constant value of attribute separator event */
-   EVT_JSON_COLON constant number := 12;
+   /**constant value of array value event */
+   EVT_JSON_V_ARRAY constant number := 12;
    
-  /**constant value of eof event */
+   /**constant value of value separator event */
+   EVT_JSON_COMMA constant number := 13;
+   
+   /**constant value of attribute separator event */
+   EVT_JSON_COLON constant number := 14;
+   
+   /**constant value of eof event */
    EVT_JSON_EOF constant number := -1;
-   
-  /**
+
+   /**
     type definition of event record
-  */
+   */
    type T_JSON_EVENT is record (TOKEN varchar2(32767), EVENT number(2));
    
-  /**
+   /**
     type definition of event stack
-  */
+   */
    type T_EVENT_STACK is table of number(2);
    
    type T_PARSE_CONTEXT is record (
@@ -91,4 +127,3 @@ create or replace package PL_JSON_STREAM as
    procedure NEXT_JSON_EVENT(CTX in out T_PARSE_CONTEXT, E out nocopy T_JSON_EVENT);
    
 end PL_JSON_STREAM;
-/
