@@ -29,9 +29,11 @@ create or replace package body PL_JSON_STREAM as
    OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
    OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    */
-
+   
    MAX_BUF_LMT constant number := 4096;
    MAX_PK_LMT constant number := 1024;
+   CTX_DATA_TYPE_STR constant number := 1;
+   CTX_DATA_TYPE_CLOB constant number := 2;
    ESCAPE_CHARS constant varchar2(8) := '"' || '\' || '/' || 'b' || 'f' || 'n' || 'r' || 't';
    ESCAPE_VALUES constant varchar2(8) := '"' || '\' || '/' || CHR(8) || CHR(12) || CHR(10) || CHR(13) || CHR(9);
    
@@ -55,7 +57,13 @@ create or replace package body PL_JSON_STREAM as
       if (MAX_BUF_LMT > CTX.TOTAL_LEN - CTX.IDX + 1) then
          CTX.BUF_LMT := CTX.TOTAL_LEN - CTX.IDX + 1;
       end if;
-      CTX.BUF := SUBSTR(CTX.STR_DATA, CTX.IDX, CTX.BUF_LMT);
+      if (CTX.DATA_TYPE = CTX_DATA_TYPE_STR) then
+         CTX.BUF := SUBSTR(CTX.STR_DATA, CTX.IDX, CTX.BUF_LMT);
+      elsif (CTX.DATA_TYPE = CTX_DATA_TYPE_CLOB) then
+         DBMS_LOB.READ(CTX.LOB_DATA, CTX.BUF_LMT, CTX.IDX, CTX.BUF);
+      else
+         RAISE_APPLICATION_ERROR(- 20601, 'Unsupported data type'); 
+      end if;
    end;
    
    procedure PUSH_BACK(CTX in out T_PARSE_CONTEXT, STR varchar) is
@@ -84,9 +92,6 @@ create or replace package body PL_JSON_STREAM as
    T number;
    STR varchar2(32767);
    begin
-      if (CTX.STR_DATA is null) then
-         return null;
-      end if;
       while true loop
          exit when CTX.IDX > CTX.TOTAL_LEN or S < 1;
          T := S;
@@ -346,7 +351,7 @@ create or replace package body PL_JSON_STREAM as
       end if;
    end;
    
-   procedure NEXT_TK(CTX in out T_PARSE_CONTEXT, E in out T_JSON_EVENT) is
+   procedure NEXT_TOKEN(CTX in out T_PARSE_CONTEXT, E in out T_JSON_EVENT) is
    CH char(1);
    begin
       while true loop
@@ -383,6 +388,18 @@ create or replace package body PL_JSON_STREAM as
       CTX.BUF_IDX := MAX_BUF_LMT + 1;
       CTX.TOTAL_LEN := LENGTH(STR);
       CTX.STR_DATA := STR;
+      CTX.DATA_TYPE := CTX_DATA_TYPE_STR;
+      CTX.IDX := 1;
+      CTX.E_STACK := T_EVENT_STACK();
+   end;
+   
+   procedure BEGIN_PARSE(LOB_DATA in clob, CTX out T_PARSE_CONTEXT) is
+   begin
+      CTX.BUF_LMT := MAX_BUF_LMT;
+      CTX.BUF_IDX := MAX_BUF_LMT + 1;
+      CTX.TOTAL_LEN := DBMS_LOB.GETLENGTH(LOB_DATA);
+      CTX.LOB_DATA := LOB_DATA;
+      CTX.DATA_TYPE := CTX_DATA_TYPE_CLOB;
       CTX.IDX := 1;
       CTX.E_STACK := T_EVENT_STACK();
    end;
@@ -419,7 +436,7 @@ create or replace package body PL_JSON_STREAM as
             E.EVENT := EVT_JSON_EOF;
             exit;
          end if;
-         NEXT_TK(CTX, E);
+         NEXT_TOKEN(CTX, E);
          CNT := CTX.E_STACK.COUNT;
          
          if (E.EVENT in (EVT_JSON_OBJ_START, EVT_JSON_ARRAY_START)) then

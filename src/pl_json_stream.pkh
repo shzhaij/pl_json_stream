@@ -29,7 +29,7 @@ create or replace package PL_JSON_STREAM as
    OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
    OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    */
-
+   
    /*
    SET SERVEROUTPUT ON;
    DECLARE
@@ -91,7 +91,7 @@ create or replace package PL_JSON_STREAM as
    
    /**constant value of eof event */
    EVT_JSON_EOF constant number := -1;
-
+   
    /**
     type definition of event record
    */
@@ -123,6 +123,8 @@ create or replace package PL_JSON_STREAM as
    pragma EXCEPTION_INIT(MALFORMED_JSON_STRING, -20601);
    
    procedure BEGIN_PARSE(STR in varchar, CTX out T_PARSE_CONTEXT);
+   
+   procedure BEGIN_PARSE(LOB_DATA in clob, CTX out T_PARSE_CONTEXT);
    
    procedure NEXT_JSON_EVENT(CTX in out T_PARSE_CONTEXT, E out nocopy T_JSON_EVENT);
    
